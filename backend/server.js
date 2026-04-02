@@ -43,12 +43,15 @@ app.use('/api/bookings', require('./routes/bookingRoutes'));
 // TEST ENDPOINT
 app.get('/api/health', (req, res) => res.json({ status: 'OK', routes: 'ACTIVE' }));
 
-// ❌ HANDLE UNKNOWN ROUTES
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found'
-    });
+// ❌ HANDLE UNKNOWN ROUTES (SPA fallback)
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({
+            success: false,
+            message: 'Route not found'
+        });
+    }
+    res.sendFile(path.join(__dirname, './dist/index.html'));
 });
 
 // ✅ GLOBAL ERROR HANDLER
