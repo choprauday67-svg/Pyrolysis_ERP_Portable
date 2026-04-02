@@ -39,7 +39,7 @@ app.use('/api/bookings', require('./routes/bookingRoutes'));
 app.get('/api/health', (req, res) => res.json({ status: 'OK', routes: 'ACTIVE' }));
 
 // ✅ SPA FALLBACK
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ success: false, message: 'Route not found' });
     }
