@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reports – Pyrolysis ERP</title>
+    <meta name="description" content="Export daily production, monthly profit and GST sales reports." />
+    <link rel="stylesheet" href="/assets/index-DDIcup4v.css" />
+    <link rel="stylesheet" href="/biz-styles.css" />
+    <style>
+      .report-card { position:relative; }
+      .export-btn-row { display:flex; gap:10px; flex-wrap:wrap; }
+      .export-btn-row button { min-width:140px; }
+      .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:10px; }
+      .stat-grid .stat { background:rgba(15,20,30,0.7); border-radius:12px; padding:16px; text-align:center; }
+      .stat small { display:block; color:#8a9ab5; font-size:0.8rem; margin-bottom:6px; }
+      .stat strong { font-size:1.15rem; color:#57b3ff; }
+      @media(max-width:700px){ .stat-grid { grid-template-columns:1fr 1fr; } }
+      .preview-table-wrap { overflow-x:auto; margin-top:14px; max-height:320px; overflow-y:auto; }
+      .empty-msg { color:#5a6a80; text-align:center; padding:20px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><a href="/">Pyrolysis ERP</a></div>
+      <nav class="biz-main-nav"></nav>
+    </header>
+    <main>
+      <div id="flash-container"></div>
+      <div class="page-header">
+        <div>
+          <h1>Download Reports</h1>
+          <p>Export daily production, monthly profit and GST sales reports.</p>
+        </div>
+      </div>
+
+      <!-- Quick Summary -->
+      <div class="card">
+        <h2>Live Summary</h2>
+        <div class="stat-grid" id="quick-stats">
+          <div class="stat"><small>Daily Batches</small><strong id="st-daily">–</strong></div>
+          <div class="stat"><small>Monthly Revenue</small><strong id="st-rev">–</strong></div>
+          <div class="stat"><small>Monthly Gross Profit</small><strong id="st-profit">–</strong></div>
+          <div class="stat"><small>GST Invoices (month)</small><strong id="st-gst">–</strong></div>
+        </div>
+      </div>
+
+      <!-- Daily Production Report -->
+      <div class="card report-card">
+        <h2>Daily Production Report</h2>
+        <div class="grid grid-2">
+          <div>
+            <label for="daily-date">Date</label>
+            <input id="daily-date" type="date" />
+          </div>
+          <div style="align-self:flex-end;">
+            <div class="export-btn-row">
+              <button id="preview-daily">👁 Preview</button>
+              <button id="export-daily-csv">⬇ Export CSV</button>
+            </div>
+          </div>
+        </div>
+        <div id="daily-preview"></div>
+      </div>
+
+      <!-- Monthly Profit Report -->
+      <div class="card report-card">
+        <h2>Monthly Profit Report</h2>
+        <div class="grid grid-2">
+          <div>
+            <label for="monthly-month">Month</label>
+            <input id="monthly-month" type="month" />
+          </div>
+          <div style="align-self:flex-end;">
+            <div class="export-btn-row">
+              <button id="preview-monthly">👁 Preview</button>
+              <button id="export-monthly-excel">⬇ Export Excel</button>
+            </div>
+          </div>
+        </div>
+        <div id="monthly-preview"></div>
+      </div>
+
+      <!-- GST Sales Report -->
+      <div class="card report-card">
+        <h2>GST Sales Report</h2>
+        <div class="grid grid-2">
+          <div>
+            <label for="gst-from">From Date</label>
+            <input id="gst-from" type="date" />
+          </div>
+          <div>
+            <label for="gst-to">To Date</label>
+            <input id="gst-to" type="date" />
+          </div>
+        </div>
+        <div class="export-btn-row" style="margin-top:6px;">
+          <button id="preview-gst">👁 Preview Invoices</button>
+          <button id="export-gst-pdf">⬇ Export PDF</button>
+        </div>
+        <div id="gst-preview" class="preview-table-wrap"></div>
+      </div>
+    </main>
+
+    <script src="/biz-modules.js"></script>
+    <script>
+      window.bizHelpers.buildNav();
+
+      const now = new Date();
+      const todayStr   = now.toISOString().slice(0, 10);
+      const monthStr   = now.toISOString().slice(0, 7);
+      const monthStart = `${monthStr}-01`;
+
+      document.getElementById('daily-date').value   = todayStr;
+      document.getElementById('monthly-month').value = monthStr;
+      document.getElementById('gst-from').value     = monthStart;
+      document.getElementById('gst-to').value       = todayStr;
+
+      const fmt = window.bizHelpers.formatCurrency;
+
+      // ── Download helper ────────────────────────────────────────────────────
+      const download = async (url, btnEl) => {
+        const originalText = btnEl ? btnEl.textContent : '';
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳...'; }
+        try {
+          await window.bizHelpers.downloadAuthenticatedFile(url);
+        } catch (err) {
+          window.bizHelpers.createFlash(err.message, 'error');
+        } finally {
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = originalText; }
+        }
+      };
+
+      const withLoading = async (btn, fn) => {
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '⏳ Loading…';
+        try { await fn(); } finally { btn.disabled = false; btn.textContent = orig; }
+      };
+
+      // ── Quick summary ──────────────────────────────────────────────────────
+      const refreshSummary = async () => {
+        try {
+          const daily   = await window.bizHelpers.apiRequest(`/api/reports/daily-production?date=${todayStr}`);
+          const monthly = await window.bizHelpers.apiRequest(`/api/reports/monthly-profit?month=${monthStr}`);
+          const gst     = await window.bizHelpers.apiRequest(`/api/reports/gst-sales?from=${monthStart}&to=${todayStr}`);
+          document.getElementById('st-daily').textContent  = daily.report.length + ' batches';
+          document.getElementById('st-rev').textContent    = fmt(monthly.revenue);
+          document.getElementById('st-profit').textContent = fmt(monthly.profit);
+          document.getElementById('st-gst').textContent    = gst.report.length + ' invoices';
+        } catch (e) {
+          ['st-daily','st-rev','st-profit','st-gst'].forEach(id => {
+            document.getElementById(id).textContent = '–';
+          });
+        }
+      };
+
+      // ── Daily preview ──────────────────────────────────────────────────────
+      document.getElementById('preview-daily').addEventListener('click', async function() {
+        await withLoading(this, async () => {
+          const date = document.getElementById('daily-date').value;
+          const data = await window.bizHelpers.apiRequest(`/api/reports/daily-production?date=${date}`);
+          const rows = data.report;
+          const div  = document.getElementById('daily-preview');
+          if (!rows.length) { div.innerHTML = '<p class="empty-msg">No batches found for this date.</p>'; return; }
+          div.innerHTML = `<div class="preview-table-wrap"><table>
+            <thead><tr><th>Batch</th><th>Input (kg)</th><th>Oil (L)</th><th>Carbon (kg)</th><th>Steel (kg)</th><th>Gas (m³)</th><th>Status</th></tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r.batch_number}</td><td>${r.input_tyres}</td>
+              <td>${r.oil_output || '–'}</td><td>${r.carbon_output || '–'}</td>
+              <td>${r.steel_output || '–'}</td><td>${r.gas_output || '–'}</td>
+              <td><span class="status-pill">${r.status}</span></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+        });
+      });
+
+      document.getElementById('export-daily-csv').addEventListener('click', async function() {
+        await download(`/api/reports/daily-production/export/csv?date=${document.getElementById('daily-date').value}`, this);
+      });
+
+      // ── Monthly preview ────────────────────────────────────────────────────
+      document.getElementById('preview-monthly').addEventListener('click', async function() {
+        await withLoading(this, async () => {
+          const month = document.getElementById('monthly-month').value;
+          const data  = await window.bizHelpers.apiRequest(`/api/reports/monthly-profit?month=${month}`);
+          const div   = document.getElementById('monthly-preview');
+          const profitColor = data.profit >= 0 ? '#2cc281' : '#e45d75';
+          div.innerHTML = `<div class="stat-grid" style="margin-top:14px;">
+            <div class="stat"><small>Invoice Revenue</small><strong>${fmt(data.revenue)}</strong></div>
+            <div class="stat"><small>Operational Expenses</small><strong>${fmt(data.expense)}</strong></div>
+            <div class="stat"><small>Net Profit</small><strong style="color:${profitColor}">${fmt(data.profit)}</strong></div>
+            <div class="stat"><small>Net Margin %</small><strong>${data.profit_percentage}%</strong></div>
+          </div>`;
+        });
+      });
+
+      document.getElementById('export-monthly-excel').addEventListener('click', async function() {
+        await download(`/api/reports/monthly-profit/export/excel?month=${document.getElementById('monthly-month').value}`, this);
+      });
+
+      // ── GST preview ────────────────────────────────────────────────────────
+      document.getElementById('preview-gst').addEventListener('click', async function() {
+        await withLoading(this, async () => {
+          const from = document.getElementById('gst-from').value;
+          const to   = document.getElementById('gst-to').value;
+          const data = await window.bizHelpers.apiRequest(`/api/reports/gst-sales?from=${from}&to=${to}`);
+          const rows = data.report;
+          const div  = document.getElementById('gst-preview');
+          if (!rows.length) { div.innerHTML = '<p class="empty-msg">No GST invoices found in this date range.</p>'; return; }
+          let totalTax = 0, grandTotal = 0;
+          div.innerHTML = `<table>
+            <thead><tr><th>Invoice No.</th><th>Date</th><th>Customer</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody>${rows.map(r => {
+              totalTax   += Number(r.taxable_amount || 0);
+              grandTotal += Number(r.total_amount || 0);
+              return `<tr>
+                <td>${r.invoice_number}</td>
+                <td>${new Date(r.invoice_date).toLocaleDateString('en-IN')}</td>
+                <td>${r.customer_name}</td>
+                <td>${fmt(r.taxable_amount)}</td>
+                <td>${fmt(r.cgst)}</td>
+                <td>${fmt(r.sgst)}</td>
+                <td>${fmt(r.igst)}</td>
+                <td><strong>${fmt(r.total_amount)}</strong></td>
+                <td><span class="status-pill status-${r.payment_status.toLowerCase()}">${r.payment_status}</span></td>
+              </tr>`;
+            }).join('')}</tbody>
+            <tfoot><tr style="font-weight:600;border-top:2px solid rgba(255,255,255,0.1);">
+              <td colspan="3">Total (${rows.length} invoices)</td>
+              <td>${fmt(totalTax)}</td><td colspan="3"></td>
+              <td>${fmt(grandTotal)}</td><td></td>
+            </tfoot>
+          </table>`;
+        });
+      });
+
+      document.getElementById('export-gst-pdf').addEventListener('click', async function() {
+        const from = document.getElementById('gst-from').value;
+        const to   = document.getElementById('gst-to').value;
+        if (!from || !to) return window.bizHelpers.createFlash('Please set both date range fields', 'error');
+        await download(`/api/reports/gst-sales/export/pdf?from=${from}&to=${to}`, this);
+      });
+
+      refreshSummary();
+    </script>
+  </body>
+</html>

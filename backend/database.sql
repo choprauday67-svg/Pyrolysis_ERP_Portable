@@ -165,3 +165,36 @@ INSERT INTO expenses (type, amount, date) VALUES
 ('Electricity', 1500.00, '2026-03-01'),
 ('Labor', 3000.00, '2026-03-05'),
 ('Maintenance', 500.00, '2026-03-15');
+
+-- ========== MARKET TREND TABLES ==========
+-- Commodity Market Trends
+CREATE TABLE IF NOT EXISTS commodity_prices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    commodity TEXT NOT NULL UNIQUE CHECK (commodity IN ('Pyrolysis Oil', 'Carbon Black', 'Gas', 'Steel')),
+    current_price REAL NOT NULL DEFAULT 0,
+    previous_price REAL NOT NULL DEFAULT 0,
+    trend_direction TEXT DEFAULT 'stable' CHECK (trend_direction IN ('up', 'down', 'stable')),
+    change_percentage REAL DEFAULT 0,
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Price History for Charting
+CREATE TABLE IF NOT EXISTS commodity_price_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    commodity TEXT NOT NULL CHECK (commodity IN ('Pyrolysis Oil', 'Carbon Black', 'Gas', 'Steel')),
+    price REAL NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (commodity) REFERENCES commodity_prices(commodity) ON DELETE CASCADE
+);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_commodity_price_history_commodity_timestamp ON commodity_price_history(commodity, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_commodity_price_history_timestamp ON commodity_price_history(timestamp DESC);
+
+-- Initial commodity prices (base prices)
+INSERT OR IGNORE INTO commodity_prices (commodity, current_price, previous_price, trend_direction, change_percentage) VALUES 
+('Pyrolysis Oil', 500.00, 500.00, 'stable', 0),
+('Carbon Black', 350.00, 350.00, 'stable', 0),
+('Gas', 200.00, 200.00, 'stable', 0),
+('Steel', 180.00, 180.00, 'stable', 0);

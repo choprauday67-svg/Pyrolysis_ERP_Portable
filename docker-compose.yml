@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pyrolysis_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password_here
+      POSTGRES_DB: pyrolysis_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: pyrolysis_app
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=pyrolysis_erp
+      - DB_USER=postgres
+      - DB_PASSWORD=your_secure_password_here
+      - PORT=5000
+      - JWT_SECRET=pyrolysis_erp_production_jwt_secret_change_me
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

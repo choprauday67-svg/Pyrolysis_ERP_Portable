@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profit Analytics</title>
+    <link rel="stylesheet" href="/assets/index-DDIcup4v.css" />
+    <link rel="stylesheet" href="/biz-styles.css" />
+  </head>
+  <body>
+    <header>
+      <div><a href="/">Pyrolysis ERP</a></div>
+      <nav class="biz-main-nav"></nav>
+    </header>
+    <main>
+      <div id="flash-container"></div>
+      <div class="page-header">
+        <div>
+          <h1>Product Profit Analytics</h1>
+          <p>Monitor profit, revenue contribution and product trends.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Total Revenue</h2>
+          <p id="total-revenue">₹ 0.00</p>
+        </div>
+        <div class="card">
+          <h2>Total Profit</h2>
+          <p id="total-profit">₹ 0.00</p>
+        </div>
+        <div class="card">
+          <h2>Top Profit Product</h2>
+          <p id="top-product">N/A</p>
+        </div>
+        <div class="card">
+          <h2>Lowest Profit Product</h2>
+          <p id="bottom-product">N/A</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Profit Breakdown</h2>
+        <table>
+          <thead><tr><th>Product</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Margin</th></tr></thead>
+          <tbody id="profit-breakdown"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Revenue Contribution</h2>
+        <table>
+          <thead><tr><th>Product</th><th>Contribution</th></tr></thead>
+          <tbody id="revenue-contribution"></tbody>
+        </table>
+      </div>
+    </main>
+    <script src="/biz-modules.js"></script>
+    <script>
+      window.bizHelpers.buildNav();
+
+      const totalRevenue = document.getElementById('total-revenue');
+      const totalProfit = document.getElementById('total-profit');
+      const topProduct = document.getElementById('top-product');
+      const bottomProduct = document.getElementById('bottom-product');
+      const profitBreakdown = document.getElementById('profit-breakdown');
+      const revenueContribution = document.getElementById('revenue-contribution');
+
+      const loadAnalytics = async () => {
+        profitBreakdown.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8a9ab5;">Loading data...</td></tr>';
+        revenueContribution.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#8a9ab5;">Loading data...</td></tr>';
+        
+        try {
+          const { metrics, products, highestProfitProduct, lowestProfitProduct, revenueContribution: contribution } = await window.bizHelpers.apiRequest('/api/analytics/profit');
+          totalRevenue.textContent = window.bizHelpers.formatCurrency(metrics.total_revenue);
+          totalProfit.textContent = window.bizHelpers.formatCurrency(metrics.total_profit);
+          topProduct.textContent = highestProfitProduct ? `${highestProfitProduct.product} (${window.bizHelpers.formatCurrency(highestProfitProduct.profit)})` : 'N/A';
+          bottomProduct.textContent = lowestProfitProduct ? `${lowestProfitProduct.product} (${window.bizHelpers.formatCurrency(lowestProfitProduct.profit)})` : 'N/A';
+          
+          profitBreakdown.innerHTML = products.length ? products.map((item) => `
+            <tr><td>${item.product}</td><td>${window.bizHelpers.formatCurrency(item.revenue)}</td><td>${window.bizHelpers.formatCurrency(item.estimated_cost)}</td><td>${window.bizHelpers.formatCurrency(item.profit)}</td><td>${item.profit_percentage}%</td></tr>
+          `).join('') : '<tr><td colspan="5" style="text-align:center;color:#8a9ab5;">No data available</td></tr>';
+          
+          revenueContribution.innerHTML = contribution.length ? contribution.map((item) => `
+            <tr><td>${item.product}</td><td>${item.contribution}%</td></tr>
+          `).join('') : '<tr><td colspan="2" style="text-align:center;color:#8a9ab5;">No data available</td></tr>';
+        } catch (err) {
+          profitBreakdown.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#e45d75;">Failed to load data</td></tr>';
+          revenueContribution.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#e45d75;">Failed to load data</td></tr>';
+          window.bizHelpers.createFlash(err.message, 'error');
+        }
+      };
+
+      loadAnalytics();
+    </script>
+  </body>
+</html>

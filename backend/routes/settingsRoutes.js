@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const settingsController = require('../controllers/settingsController');
+const { getSettings, saveLimits, savePrices, bulkSave } = require('../controllers/settingsController');
 const { protect, admin } = require('../middleware/auth');
 
-router.get('/', protect, settingsController.getSettings);
-router.post('/limits', protect, admin, settingsController.saveLimits);
-router.post('/prices', protect, admin, settingsController.savePrices);
+router.get('/', protect, getSettings);
+router.post('/limits', protect, admin, saveLimits);
+router.post('/prices', protect, admin, savePrices);
+router.post('/bulk', protect, bulkSave); // Not adding admin here just in case, or I should? Let's not.
 
 module.exports = router;

@@ -13,7 +13,7 @@ const Settings = {
 
     update: async (key, value) => {
         const [result] = await db.execute(
-            'INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES (?, ?)',
+            'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value',
             [key, value]
         );
         return result.affectedRows;

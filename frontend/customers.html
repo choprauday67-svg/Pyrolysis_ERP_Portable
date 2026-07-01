@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Customer Management</title>
+    <link rel="stylesheet" href="/assets/index-DDIcup4v.css" />
+    <link rel="stylesheet" href="/biz-styles.css" />
+  </head>
+  <body>
+    <header>
+      <div><a href="/">Pyrolysis ERP</a></div>
+      <nav class="biz-main-nav"></nav>
+    </header>
+    <main>
+      <div id="flash-container"></div>
+      <div class="page-header">
+        <div>
+          <h1>Customer Database</h1>
+          <p>Save reusable customer profiles for GST invoices.</p>
+        </div>
+        <div class="btn-row">
+          <button id="cancel-edit" class="secondary" style="display:none;">Cancel</button>
+          <button id="save-customer">Save Customer</button>
+        </div>
+      </div>
+
+      <div class="card grid grid-2">
+        <div>
+          <label for="cust-name">Name</label>
+          <input id="cust-name" type="text" />
+        </div>
+        <div>
+          <label for="cust-gst">GST Number</label>
+          <input id="cust-gst" type="text" />
+        </div>
+        <div>
+          <label for="cust-phone">Phone</label>
+          <input id="cust-phone" type="text" />
+        </div>
+        <div>
+          <label for="cust-address">Address</label>
+          <textarea id="cust-address" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <h2>Saved Customers <span id="customer-count" class="badge-count">0</span></h2>
+          <div class="search-bar" style="margin-bottom:0;">
+            <input id="search-input" type="text" placeholder="🔍 Search name or GST..." />
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Name</th><th>GST Number</th><th>Phone</th><th>Address</th><th>Action</th></tr></thead>
+            <tbody id="customer-list"><tr class="loading-row"><td colspan="5">Loading customers...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+    <script src="/biz-modules.js"></script>
+    <script>
+      const nameInput = document.getElementById('cust-name');
+      const gstInput = document.getElementById('cust-gst');
+      const phoneInput = document.getElementById('cust-phone');
+      const addressInput = document.getElementById('cust-address');
+      const customerList = document.getElementById('customer-list');
+      const saveButton = document.getElementById('save-customer');
+      const cancelButton = document.getElementById('cancel-edit');
+      const searchInput = document.getElementById('search-input');
+      const customerCount = document.getElementById('customer-count');
+      
+      let editingCustomerId = null;
+      let allCustomers = [];
+
+      window.bizHelpers.buildNav();
+
+      const renderCustomerTable = () => {
+        const q = searchInput.value.toLowerCase();
+        const filtered = allCustomers.filter(c => 
+          !q || c.name.toLowerCase().includes(q) || c.gst_number.toLowerCase().includes(q)
+        );
+        
+        customerCount.textContent = filtered.length;
+        
+        if (!filtered.length) {
+          customerList.innerHTML = '<tr class="loading-row"><td colspan="5">No customers match your filter.</td></tr>';
+          return;
+        }
+
+        customerList.innerHTML = filtered.map((customer) => `
+          <tr>
+            <td><strong>${customer.name}</strong></td>
+            <td>${customer.gst_number}</td>
+            <td>${customer.phone || '-'}</td>
+            <td>${customer.address}</td>
+            <td>
+              <div class="btn-row">
+                <button class="secondary small" data-action="edit" data-id="${customer.id}">Edit</button>
+                <button class="danger small" data-action="drop" data-id="${customer.id}">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      };
+
+      const loadCustomers = async () => {
+        customerList.innerHTML = '<tr class="loading-row"><td colspan="5">Loading customers...</td></tr>';
+        try {
+          const { customers } = await window.bizHelpers.apiRequest('/api/customers');
+          allCustomers = customers || [];
+          renderCustomerTable();
+        } catch (err) {
+          customerList.innerHTML = '<tr class="loading-row"><td colspan="5">Unable to load customers.</td></tr>';
+          window.bizHelpers.createFlash(err.message, 'error');
+        }
+      };
+
+      const clearForm = () => {
+        editingCustomerId = null;
+        nameInput.value = '';
+        gstInput.value = '';
+        phoneInput.value = '';
+        addressInput.value = '';
+        saveButton.textContent = 'Save Customer';
+        cancelButton.style.display = 'none';
+      };
+
+      searchInput.addEventListener('input', renderCustomerTable);
+      cancelButton.addEventListener('click', clearForm);
+
+      customerList.addEventListener('click', async (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        const action = button.dataset.action;
+        const id = button.dataset.id;
+        if (action === 'edit') {
+          try {
+            const { customer } = await window.bizHelpers.apiRequest(`/api/customers/${id}`);
+            editingCustomerId = customer.id;
+            nameInput.value = customer.name;
+            gstInput.value = customer.gst_number;
+            phoneInput.value = customer.phone || '';
+            addressInput.value = customer.address;
+            saveButton.textContent = 'Update Customer';
+            cancelButton.style.display = 'inline-block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } catch (err) {
+            window.bizHelpers.createFlash(err.message, 'error');
+          }
+        }
+        if (action === 'drop') {
+          const name = button.closest('tr').querySelector('td').textContent;
+          if (!confirm(`Delete customer "${name}"? This cannot be undone.`)) return;
+          try {
+            await window.bizHelpers.apiRequest(`/api/customers/${id}`, { method: 'DELETE' });
+            window.bizHelpers.createFlash('Customer deleted');
+            loadCustomers();
+            if (editingCustomerId == id) clearForm();
+          } catch (err) {
+            window.bizHelpers.createFlash(err.message, 'error');
+          }
+        }
+      });
+
+      saveButton.addEventListener('click', async () => {
+        const payload = {
+          name: nameInput.value.trim(),
+          gst_number: gstInput.value.trim().toUpperCase(),
+          phone: phoneInput.value.trim(),
+          address: addressInput.value.trim()
+        };
+        if (!payload.name || !payload.gst_number || !payload.address) {
+          return window.bizHelpers.createFlash('Name, GST and address are required', 'error');
+        }
+        
+        // Basic GST validation
+        if (payload.gst_number.length !== 15) {
+          return window.bizHelpers.createFlash('GST number must be 15 characters long', 'warning');
+        }
+
+        saveButton.disabled = true;
+        const origText = saveButton.textContent;
+        saveButton.textContent = 'Saving...';
+
+        try {
+          if (editingCustomerId) {
+            await window.bizHelpers.apiRequest(`/api/customers/${editingCustomerId}`, { method: 'PUT', body: payload });
+            window.bizHelpers.createFlash('Customer updated');
+          } else {
+            await window.bizHelpers.apiRequest('/api/customers', { method: 'POST', body: payload });
+            window.bizHelpers.createFlash('Customer saved');
+          }
+          clearForm();
+          loadCustomers();
+        } catch (err) {
+          window.bizHelpers.createFlash(err.message, 'error');
+        } finally {
+          saveButton.disabled = false;
+          saveButton.textContent = origText;
+        }
+      });
+
+      loadCustomers();
+    </script>
+  </body>
+</html>

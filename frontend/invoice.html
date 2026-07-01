@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GST Invoice Management – Pyrolysis ERP</title>
+    <meta name="description" content="Create, preview and export GST-compliant invoices for your pyrolysis plant." />
+    <link rel="stylesheet" href="/assets/index-DDIcup4v.css" />
+    <link rel="stylesheet" href="/biz-styles.css" />
+    <style>
+      .item-row { display:grid; grid-template-columns: 3fr 90px 110px 90px 120px 40px; gap:12px; align-items:end; margin-bottom:12px; background:rgba(30, 41, 59, 0.4); padding:12px; border-radius:8px; border:1px solid #334155; transition:border-color 0.2s; }
+      .item-row:hover { border-color:#475569; }
+      .item-row input, .item-row select { margin-bottom:0; font-size:0.9rem; padding:10px; border-radius:6px; }
+      .item-row label { font-size:0.8rem; color:#94a3b8; font-weight:500; }
+      @media(max-width:900px){ .item-row { grid-template-columns:1fr 1fr; } }
+      
+      .totals-box { 
+        display:grid; grid-template-columns: 1fr 1fr 1fr 1fr 1.5fr; gap:16px; 
+        background:transparent; padding:0; margin-top:24px; border:none; 
+      }
+      .totals-box .t-cell { 
+        text-align:right; background:#1e293b; padding:16px; border-radius:8px; border:1px solid #334155; 
+      }
+      .totals-box .t-cell small { display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; }
+      .totals-box .t-cell strong { font-size:1.15rem; color:#f8fafc; }
+      .totals-box .t-cell.grand { background:#0f172a; border-color:#3b82f6; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+      .totals-box .t-cell.grand strong { color:#60a5fa; font-size:1.4rem; }
+      @media(max-width:700px){ .totals-box { grid-template-columns:1fr 1fr; } .totals-box .t-cell.grand { grid-column: span 2; } }
+      
+      .gst-type-toggle { display:inline-flex; background:#0f172a; padding:4px; border-radius:8px; border:1px solid #334155; }
+      .gst-type-toggle button { padding:8px 16px; font-size:0.85rem; border-radius:6px; border:none; color:#94a3b8; background:transparent; font-weight:500; transition:all 0.2s; }
+      .gst-type-toggle button.active { background:#334155; color:#f8fafc; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+      .search-bar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+      .search-bar input, .search-bar select { margin-bottom:0; flex:1; min-width:140px; }
+      .loading-row td { text-align:center; color:#5a6a80; padding:24px; }
+      .badge-count { background:#1e293b; color:#fff; border-radius:999px; font-size:0.75rem; padding:2px 8px; margin-left:6px; }
+      .btn-row { display:flex; gap:8px; }
+      #save-invoice-button { background:linear-gradient(135deg,#1e293b,#334155); }
+      #save-invoice-button:disabled { opacity:0.5; cursor:not-allowed; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><a href="/">Pyrolysis ERP</a></div>
+      <nav class="biz-main-nav"></nav>
+    </header>
+    <main>
+      <div id="flash-container"></div>
+      <div class="page-header">
+        <div>
+          <h1>GST Invoice Management</h1>
+          <p>Create, preview and export GST-compliant invoices.</p>
+        </div>
+        <div class="btn-row">
+          <button id="add-item-button">+ Add Item</button>
+          <button id="save-invoice-button">💾 Save Invoice</button>
+        </div>
+      </div>
+
+      <!-- Invoice Form -->
+      <div class="card">
+        <h2>New Invoice</h2>
+        <div class="grid grid-2">
+          <div>
+            <label for="customer-select">Load Saved Customer</label>
+            <select id="customer-select"><option value="">– Choose customer –</option></select>
+          </div>
+          <div>
+            <label for="payment-status">Payment Status</label>
+            <select id="payment-status">
+              <option value="Pending">Pending</option>
+              <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+          </div>
+          <div>
+            <label for="invoice-number">Invoice Number</label>
+            <input id="invoice-number" type="text" disabled value="AUTO-GENERATED" />
+          </div>
+          <div>
+            <label for="invoice-date">Invoice Date</label>
+            <input id="invoice-date" type="date" />
+          </div>
+          <div>
+            <label for="customer-name">Customer Name *</label>
+            <input id="customer-name" type="text" placeholder="e.g. Shree Petroleum Distributors" />
+          </div>
+          <div>
+            <label for="customer-gst">GST Number *</label>
+            <input id="customer-gst" type="text" placeholder="e.g. 27AAACS1234A1Z5" />
+          </div>
+          <div>
+            <label for="customer-phone">Phone</label>
+            <input id="customer-phone" type="text" placeholder="e.g. 9011234567" />
+          </div>
+          <div>
+            <label for="customer-address">Address *</label>
+            <textarea id="customer-address" rows="2" placeholder="Full billing address"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoice Items -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0;">Line Items</h2>
+          <div class="gst-type-toggle">
+            <button id="gst-intra" class="active" title="Intra-State: CGST+SGST">Intra-State</button>
+            <button id="gst-inter" title="Inter-State: IGST">Inter-State</button>
+          </div>
+        </div>
+        
+        <datalist id="product-list">
+          <option value="Pyrolysis Oil">
+          <option value="Carbon Black">
+          <option value="Scrap Steel Wire">
+          <option value="Synthesis Gas">
+        </datalist>
+
+        <!-- Column headers -->
+        <div class="item-row" style="margin-bottom:8px; background:#0f172a; padding:12px; border-radius:8px; border:none; align-items:center;">
+          <label style="color:#f8fafc; font-weight:600;">Product / Service Description</label>
+          <label style="color:#f8fafc; font-weight:600;">Qty</label>
+          <label style="color:#f8fafc; font-weight:600;">Rate (₹)</label>
+          <label style="color:#f8fafc; font-weight:600;">Tax %</label>
+          <label style="color:#f8fafc; font-weight:600; text-align:right;">Amount (₹)</label>
+          <label></label>
+        </div>
+        
+        <div id="invoice-items"></div>
+        <button id="add-item-button-2" class="secondary" style="margin-top:12px; padding:10px 20px; font-weight:600;">+ Add New Line</button>
+
+        <!-- Totals Summary -->
+        <div class="totals-box">
+          <div class="t-cell"><small>Taxable Amount</small><strong id="summary-taxable">₹ 0.00</strong></div>
+          <div class="t-cell"><small>CGST</small><strong id="summary-cgst">₹ 0.00</strong></div>
+          <div class="t-cell"><small>SGST</small><strong id="summary-sgst">₹ 0.00</strong></div>
+          <div class="t-cell"><small>IGST</small><strong id="summary-igst">₹ 0.00</strong></div>
+          <div class="t-cell grand"><small>Total Payable</small><strong id="summary-total">₹ 0.00</strong></div>
+        </div>
+      </div>
+
+      <!-- Invoice History -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <h2>Invoice History <span id="invoice-count" class="badge-count">0</span></h2>
+        </div>
+        <div class="search-bar">
+          <input id="search-input" type="text" placeholder="🔍 Search customer / invoice no..." />
+          <select id="filter-status">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Paid">Paid</option>
+            <option value="Overdue">Overdue</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr><th>Invoice No.</th><th>Date</th><th>Customer</th><th>Taxable</th><th>GST</th><th>Total</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="invoice-history"><tr class="loading-row"><td colspan="8">Loading invoices...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <script src="/biz-modules.js"></script>
+    <script>
+      window.bizHelpers.buildNav();
+
+      // ── State ──────────────────────────────────────────────────────────────
+      const itemsState = [];
+      let gstMode = 'intra'; // 'intra' | 'inter'
+      let allInvoices = [];
+
+      // ── DOM refs ───────────────────────────────────────────────────────────
+      const selectedCustomer = document.getElementById('customer-select');
+      const invoiceDate      = document.getElementById('invoice-date');
+      const customerName     = document.getElementById('customer-name');
+      const customerGst      = document.getElementById('customer-gst');
+      const customerPhone    = document.getElementById('customer-phone');
+      const customerAddress  = document.getElementById('customer-address');
+      const paymentStatus    = document.getElementById('payment-status');
+      const summaryTaxable   = document.getElementById('summary-taxable');
+      const summaryCgst      = document.getElementById('summary-cgst');
+      const summarySgst      = document.getElementById('summary-sgst');
+      const summaryIgst      = document.getElementById('summary-igst');
+      const summaryTotal     = document.getElementById('summary-total');
+      const invoiceHistory   = document.getElementById('invoice-history');
+      const invoiceCount     = document.getElementById('invoice-count');
+      const searchInput      = document.getElementById('search-input');
+      const filterStatus     = document.getElementById('filter-status');
+      const saveBtn          = document.getElementById('save-invoice-button');
+
+      invoiceDate.value = new Date().toISOString().slice(0, 10);
+
+      // ── GST Mode Toggle ────────────────────────────────────────────────────
+      document.getElementById('gst-intra').addEventListener('click', () => {
+        gstMode = 'intra';
+        document.getElementById('gst-intra').classList.add('active');
+        document.getElementById('gst-inter').classList.remove('active');
+        recalcAllItems();
+      });
+      document.getElementById('gst-inter').addEventListener('click', () => {
+        gstMode = 'inter';
+        document.getElementById('gst-inter').classList.add('active');
+        document.getElementById('gst-intra').classList.remove('active');
+        recalcAllItems();
+      });
+
+      // ── Item calculation ───────────────────────────────────────────────────
+      const calcItemTax = (taxable, taxPercent) => {
+        const taxRate = (Number(taxPercent) || 0) / 100;
+        if (gstMode === 'intra') {
+          const cgst = Math.round(taxable * (taxRate / 2) * 100) / 100;
+          const sgst = Math.round(taxable * (taxRate / 2) * 100) / 100;
+          return { cgst, sgst, igst: 0, total: Math.round((taxable + cgst + sgst) * 100) / 100 };
+        } else {
+          const igst = Math.round(taxable * taxRate * 100) / 100;
+          return { cgst: 0, sgst: 0, igst, total: Math.round((taxable + igst) * 100) / 100 };
+        }
+      };
+
+      const recalcAllItems = () => {
+        itemsState.forEach(item => {
+          const qty     = Number(item.quantity) || 0;
+          const rate    = Number(item.rate) || 0;
+          const taxPct  = Number(item.tax_percent) || 0;
+          const taxable = Math.round(qty * rate * 100) / 100;
+          const tax     = calcItemTax(taxable, taxPct);
+          item.taxable_amount = taxable;
+          item.cgst  = tax.cgst;
+          item.sgst  = tax.sgst;
+          item.igst  = tax.igst;
+          item.total = tax.total;
+        });
+        renderItems();
+      };
+
+      // ── Render items ───────────────────────────────────────────────────────
+      const renderItems = () => {
+        const container = document.getElementById('invoice-items');
+        container.innerHTML = '';
+        itemsState.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'item-row';
+          row.innerHTML = `
+            <div><input list="product-list" data-field="product_description" value="${item.product_description || ''}" placeholder="Search or enter product..." /></div>
+            <div><input type="number" min="0" step="0.001" data-field="quantity" value="${item.quantity || 0}" style="text-align:right;" /></div>
+            <div><input type="number" min="0" step="0.01" data-field="rate" value="${item.rate || 0}" style="text-align:right;" /></div>
+            <div>
+              <select data-field="tax_percent" style="text-align:right; appearance:none; background-color:rgba(15,23,42,0.5);">
+                <option value="0" ${item.tax_percent == 0 ? 'selected' : ''}>0%</option>
+                <option value="5" ${item.tax_percent == 5 ? 'selected' : ''}>5%</option>
+                <option value="12" ${item.tax_percent == 12 ? 'selected' : ''}>12%</option>
+                <option value="18" ${item.tax_percent == 18 ? 'selected' : ''}>18%</option>
+                <option value="28" ${item.tax_percent == 28 ? 'selected' : ''}>28%</option>
+              </select>
+            </div>
+            <div><input type="text" value="₹ ${Number(item.total || 0).toFixed(2)}" readonly style="background:transparent; color:#60a5fa; border:none; font-weight:700; text-align:right; font-size:1.05rem;" /></div>
+            <div><button type="button" class="danger small" data-remove="${item.id}" style="width:100%; height:41px; border-radius:6px; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.3); transition:all 0.2s;">✕</button></div>
+          `;
+          // Auto-recalc on inputs
+          row.querySelectorAll('[data-field="quantity"],[data-field="rate"],[data-field="tax_percent"]').forEach(inp => {
+            inp.addEventListener('input', () => {
+              item[inp.dataset.field] = Number(inp.value);
+              const qty     = Number(item.quantity) || 0;
+              const rate    = Number(item.rate) || 0;
+              const taxPct  = Number(item.tax_percent) || 0;
+              const taxable = Math.round(qty * rate * 100) / 100;
+              const tax     = calcItemTax(taxable, taxPct);
+              item.taxable_amount = taxable;
+              item.cgst  = tax.cgst; item.sgst = tax.sgst;
+              item.igst  = tax.igst; item.total = tax.total;
+              renderItems();
+            });
+          });
+          row.querySelector('[data-field="product_description"]').addEventListener('input', e => {
+            item.product_description = e.target.value;
+          });
+          row.querySelector(`[data-remove="${item.id}"]`).addEventListener('click', () => {
+            const idx = itemsState.findIndex(i => i.id === item.id);
+            if (idx !== -1) { itemsState.splice(idx, 1); renderItems(); }
+          });
+          container.appendChild(row);
+        });
+        calculateSummary();
+      };
+
+      const calculateSummary = () => {
+        const t = itemsState.reduce((a, i) => {
+          a.taxable += Number(i.taxable_amount) || 0;
+          a.cgst    += Number(i.cgst)   || 0;
+          a.sgst    += Number(i.sgst)   || 0;
+          a.igst    += Number(i.igst)   || 0;
+          a.total   += Number(i.total)  || 0;
+          return a;
+        }, { taxable:0, cgst:0, sgst:0, igst:0, total:0 });
+        summaryTaxable.textContent = window.bizHelpers.formatCurrency(t.taxable);
+        summaryCgst.textContent    = window.bizHelpers.formatCurrency(t.cgst);
+        summarySgst.textContent    = window.bizHelpers.formatCurrency(t.sgst);
+        summaryIgst.textContent    = window.bizHelpers.formatCurrency(t.igst);
+        summaryTotal.textContent   = window.bizHelpers.formatCurrency(t.total);
+      };
+
+      const addItem = () => {
+        itemsState.push({ id: Date.now() + Math.random(), product_description:'', quantity:1, rate:0, tax_percent: 18, taxable_amount:0, cgst:0, sgst:0, igst:0, total:0 });
+        renderItems();
+      };
+
+      // ── Load customers ─────────────────────────────────────────────────────
+      const loadCustomers = async () => {
+        try {
+          const { customers } = await window.bizHelpers.apiRequest('/api/customers');
+          selectedCustomer.innerHTML = '<option value="">– Choose saved customer –</option>';
+          customers.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.name} (${c.gst_number})`;
+            Object.assign(opt.dataset, { name: c.name, gst: c.gst_number, address: c.address, phone: c.phone || '' });
+            selectedCustomer.appendChild(opt);
+          });
+        } catch (e) { /* silent */ }
+      };
+
+      selectedCustomer.addEventListener('change', () => {
+        const opt = selectedCustomer.selectedOptions[0];
+        if (opt && opt.value) {
+          customerName.value    = opt.dataset.name    || '';
+          customerGst.value     = opt.dataset.gst     || '';
+          customerAddress.value = opt.dataset.address || '';
+          customerPhone.value   = opt.dataset.phone   || '';
+        }
+      });
+
+      // ── Load invoices ──────────────────────────────────────────────────────
+      const renderInvoiceTable = () => {
+        const q   = searchInput.value.toLowerCase();
+        const st  = filterStatus.value;
+        const filtered = allInvoices.filter(inv => {
+          const matchQ  = !q || inv.invoice_number.toLowerCase().includes(q) || inv.customer_name.toLowerCase().includes(q);
+          const matchSt = !st || inv.payment_status === st;
+          return matchQ && matchSt;
+        });
+        invoiceCount.textContent = filtered.length;
+        if (!filtered.length) {
+          invoiceHistory.innerHTML = '<tr class="loading-row"><td colspan="8">No invoices match your filter.</td></tr>';
+          return;
+        }
+        const gstOf = inv => Number(inv.cgst||0) + Number(inv.sgst||0) + Number(inv.igst||0);
+        invoiceHistory.innerHTML = filtered.map(inv => `
+          <tr>
+            <td><strong>${inv.invoice_number}</strong></td>
+            <td>${new Date(inv.invoice_date).toLocaleDateString('en-IN')}</td>
+            <td>${inv.customer_name}</td>
+            <td>${window.bizHelpers.formatCurrency(inv.taxable_amount)}</td>
+            <td>${window.bizHelpers.formatCurrency(gstOf(inv))}</td>
+            <td><strong>${window.bizHelpers.formatCurrency(inv.total_amount)}</strong></td>
+            <td><span class="status-pill status-${inv.payment_status.toLowerCase()}">${inv.payment_status}</span></td>
+            <td>
+              <div class="btn-row">
+                <button class="secondary small" data-pdf="${inv.id}" data-num="${inv.invoice_number}">📄 PDF</button>
+                <button class="danger small" data-delete="${inv.id}" data-num="${inv.invoice_number}">🗑</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+
+        // Bind delete buttons
+        invoiceHistory.querySelectorAll('[data-delete]').forEach(btn => {
+          btn.addEventListener('click', () => deleteInvoice(btn.dataset.delete, btn.dataset.num));
+        });
+
+        // Bind PDF download buttons
+        invoiceHistory.querySelectorAll('[data-pdf]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const btnEl = e.currentTarget;
+            const originalText = btnEl.textContent;
+            btnEl.disabled = true;
+            btnEl.textContent = '⏳...';
+            try {
+              await window.bizHelpers.downloadAuthenticatedFile(`/api/invoices/${btnEl.dataset.pdf}/pdf`, `${btnEl.dataset.num}.pdf`);
+            } catch(err) {
+              window.bizHelpers.createFlash(err.message, 'error');
+            } finally {
+              btnEl.disabled = false;
+              btnEl.textContent = originalText;
+            }
+          });
+        });
+      };
+
+      const loadInvoices = async () => {
+        invoiceHistory.innerHTML = '<tr class="loading-row"><td colspan="8">Loading invoices...</td></tr>';
+        try {
+          const { invoices } = await window.bizHelpers.apiRequest('/api/invoices');
+          allInvoices = invoices || [];
+          renderInvoiceTable();
+        } catch (err) {
+          invoiceHistory.innerHTML = '<tr class="loading-row"><td colspan="8">Unable to load invoices.</td></tr>';
+          window.bizHelpers.createFlash(err.message, 'error');
+        }
+      };
+
+      const deleteInvoice = async (id, num) => {
+        if (!confirm(`Delete invoice ${num}? This cannot be undone.`)) return;
+        try {
+          await window.bizHelpers.apiRequest(`/api/invoices/${id}`, { method: 'DELETE' });
+          window.bizHelpers.createFlash(`Invoice ${num} deleted.`);
+          loadInvoices();
+        } catch (err) {
+          window.bizHelpers.createFlash(err.message, 'error');
+        }
+      };
+
+      // ── Search/filter listeners ────────────────────────────────────────────
+      searchInput.addEventListener('input', renderInvoiceTable);
+      filterStatus.addEventListener('change', renderInvoiceTable);
+
+      // ── Save invoice ───────────────────────────────────────────────────────
+      const saveInvoice = async () => {
+        const name = customerName.value.trim();
+        const gst  = customerGst.value.trim();
+        const addr = customerAddress.value.trim();
+        if (!name)  return window.bizHelpers.createFlash('Customer name is required', 'error');
+        if (!gst)   return window.bizHelpers.createFlash('GST number is required', 'error');
+        if (gst.length !== 15) return window.bizHelpers.createFlash('GST number must be 15 characters long', 'warning');
+        if (!addr)  return window.bizHelpers.createFlash('Address is required', 'error');
+        if (!itemsState.length) return window.bizHelpers.createFlash('Add at least one line item', 'error');
+        const emptyDesc = itemsState.find(i => !i.product_description);
+        if (emptyDesc) return window.bizHelpers.createFlash('All items need a description', 'error');
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+          const payload = {
+            customer_id:    selectedCustomer.value || null,
+            customer_name:  name,
+            gst_number:     gst,
+            address:        addr,
+            phone:          customerPhone.value.trim(),
+            invoice_date:   invoiceDate.value,
+            payment_status: paymentStatus.value,
+            items: itemsState.map(i => ({
+              product_description: i.product_description,
+              quantity:      i.quantity,
+              rate:          i.rate,
+              taxable_amount:i.taxable_amount,
+              cgst:  i.cgst, sgst: i.sgst, igst: i.igst,
+              total_amount:  i.total
+            }))
+          };
+          const result = await window.bizHelpers.apiRequest('/api/invoices', { method: 'POST', body: payload });
+          window.bizHelpers.createFlash(`Invoice ${result.invoice_number} created successfully ✅`);
+          itemsState.length = 0;
+          renderItems();
+          customerName.value = ''; customerGst.value = ''; customerAddress.value = ''; customerPhone.value = '';
+          selectedCustomer.value = '';
+          loadInvoices();
+        } catch (err) {
+          window.bizHelpers.createFlash(err.message, 'error');
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '💾 Save Invoice';
+        }
+      };
+
+      document.getElementById('add-item-button').addEventListener('click', addItem);
+      document.getElementById('add-item-button-2').addEventListener('click', addItem);
+      saveBtn.addEventListener('click', saveInvoice);
+
+      // Init
+      addItem();
+      loadCustomers();
+      loadInvoices();
+    </script>
+  </body>
+</html>

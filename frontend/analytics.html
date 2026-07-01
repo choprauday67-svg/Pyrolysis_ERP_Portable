@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Commodity Margins — Harit Mangal Industries ERP</title>
+  <meta name="description" content="Product profit analytics dashboard — revenue, cost, margin and trend analysis."/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/assets/index-DDIcup4v.css"/>
+  <link rel="stylesheet" href="/biz-styles.css"/>
+  <style>
+    /* ── Analytics-specific styles ────────────────────────────────── */
+    .an-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .an-kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .2s, transform .18s;
+    }
+    .an-kpi:hover { border-color: rgba(255,255,255,.14); transform: translateY(-2px); }
+    .an-kpi::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .an-kpi.revenue::before { background: linear-gradient(90deg,#3a8dff,#6cb4ff); }
+    .an-kpi.cost::before    { background: linear-gradient(90deg,#f5a623,#ffcd6e); }
+    .an-kpi.profit::before  { background: linear-gradient(90deg,#2cc281,#57e4a8); }
+    .an-kpi.margin::before  { background: linear-gradient(90deg,#a855f7,#d8a4ff); }
+
+    .an-kpi-icon {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .an-kpi-label {
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .an-kpi-value {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #f5f7fb;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+    }
+    .an-kpi-value.positive { color: #2cc281; }
+    .an-kpi-value.negative { color: #e45d75; }
+    .an-kpi-sub {
+      font-size: .78rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    /* ── Top/Bottom hero ──────────────────────────────────────────── */
+    .an-hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .an-hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .an-hero-badge {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+    .an-hero-badge.top    { background: rgba(44,194,129,.15); }
+    .an-hero-badge.bottom { background: rgba(228,93,117,.15); }
+    .an-hero-name { font-size: .8rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .an-hero-val  { font-size: 1.15rem; font-weight: 700; margin-top: 2px; }
+    .an-hero-val.positive { color: #2cc281; }
+    .an-hero-val.negative { color: #e45d75; }
+
+    /* ── Charts row ───────────────────────────────────────────────── */
+    .an-charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .an-chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .an-chart-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: #e8eeff;
+      margin: 0 0 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .an-chart-wrap { position: relative; }
+
+    /* ── Profit table ─────────────────────────────────────────────── */
+    .an-table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+    .an-table-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: #e8eeff;
+      margin: 0 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .an-table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+    .an-table thead th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .an-table thead th.num { text-align: right; }
+    .an-table tbody td {
+      padding: 13px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      vertical-align: middle;
+    }
+    .an-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .an-table tbody tr:hover { background: rgba(255,255,255,.025); }
+    .an-table tbody tr:last-child td { border-bottom: none; }
+
+    .profit-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    .profit-pill.pos { background: rgba(44,194,129,.15); color: #57e4a8; }
+    .profit-pill.neg { background: rgba(228,93,117,.15); color: #ff9aaa; }
+
+    .margin-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .margin-bar-bg {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,.07);
+      overflow: hidden;
+    }
+    .margin-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+    .margin-bar-fill.pos { background: linear-gradient(90deg,#2cc281,#57e4a8); }
+    .margin-bar-fill.neg { background: linear-gradient(90deg,#e45d75,#ff9aaa); }
+    .margin-label { font-size: .8rem; font-variant-numeric: tabular-nums; min-width: 46px; text-align: right; }
+    .margin-label.pos { color: #2cc281; }
+    .margin-label.neg { color: #e45d75; }
+
+    .product-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+    .product-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Loading skeleton ─────────────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.05) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      height: 1.2em;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 1100px) {
+      .an-kpi-grid    { grid-template-columns: repeat(2,1fr); }
+      .an-charts-row  { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .an-kpi-grid    { grid-template-columns: 1fr; }
+      .an-hero-grid   { grid-template-columns: 1fr; }
+      .an-kpi-value   { font-size: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div><a href="/">Pyrolysis ERP</a></div>
+    <nav class="biz-main-nav"></nav>
+  </header>
+  <main>
+    <div id="flash-container"></div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h1>📊 Commodity Margins</h1>
+        <p>Revenue, cost &amp; margin breakdown by product — live from production data</p>
+      </div>
+      <button id="refresh-btn" class="secondary" onclick="loadAnalytics()" style="display:flex;align-items:center;gap:6px;">
+        ↻ Refresh
+      </button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="an-kpi-grid">
+      <div class="an-kpi revenue">
+        <span class="an-kpi-icon">💰</span>
+        <div class="an-kpi-label">Dispatch Revenue (Excl. GST)</div>
+        <div class="an-kpi-value" id="kpi-revenue">—</div>
+        <div class="an-kpi-sub" id="kpi-revenue-sub">Loading…</div>
+      </div>
+      <div class="an-kpi cost">
+        <span class="an-kpi-icon">🏭</span>
+        <div class="an-kpi-label">Estimated Production Cost</div>
+        <div class="an-kpi-value" id="kpi-cost">—</div>
+        <div class="an-kpi-sub" id="kpi-cost-sub">Production cost of goods dispatched</div>
+      </div>
+      <div class="an-kpi profit">
+        <span class="an-kpi-icon">📈</span>
+        <div class="an-kpi-label">Commodity Margin</div>
+        <div class="an-kpi-value" id="kpi-profit">—</div>
+        <div class="an-kpi-sub" id="kpi-profit-sub">Dispatch value minus est. production cost</div>
+      </div>
+      <div class="an-kpi margin">
+        <span class="an-kpi-icon">🎯</span>
+        <div class="an-kpi-label">Commodity Margin %</div>
+        <div class="an-kpi-value" id="kpi-margin">—</div>
+        <div class="an-kpi-sub" id="kpi-margin-sub">Overall margin %</div>
+      </div>
+    </div>
+
+    <!-- Revenue Reconciliation Report -->
+    <div class="an-table-card" style="margin-bottom: 24px;">
+      <div class="an-table-title">🔄 Revenue Reconciliation (Dispatch vs Invoices)</div>
+      <table class="an-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th class="num">Amount (₹)</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody id="recon-tbody">
+          <tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-dim);">Loading reconciliation data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top / Bottom Hero -->
+    <div class="an-hero-grid">
+      <div class="an-hero">
+        <div class="an-hero-badge top">🏆</div>
+        <div>
+          <div class="an-hero-name">Top Margin Product</div>
+          <div class="an-hero-val positive" id="hero-top">Loading…</div>
+        </div>
+      </div>
+      <div class="an-hero">
+        <div class="an-hero-badge bottom">⚠️</div>
+        <div>
+          <div class="an-hero-name">Lowest Margin Product</div>
+          <div class="an-hero-val" id="hero-bottom">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="an-charts-row">
+      <div class="an-chart-card">
+        <div class="an-chart-title">📊 Sales Value vs Cost vs Margin by Product</div>
+        <div class="an-chart-wrap" style="height:280px;">
+          <canvas id="chart-bar"></canvas>
+        </div>
+      </div>
+      <div class="an-chart-card">
+        <div class="an-chart-title">🥧 Dispatch Revenue Contribution</div>
+        <div class="an-chart-wrap" style="height:280px;">
+          <canvas id="chart-donut"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profit Breakdown Table -->
+    <div class="an-table-card">
+      <div class="an-table-title">🔍 Commodity Margin Breakdown</div>
+      <table class="an-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="num">Qty Sold</th>
+            <th class="num">Dispatch Revenue</th>
+            <th class="num">Est. Cost</th>
+            <th class="num">Margin</th>
+            <th style="min-width:160px;">Margin</th>
+          </tr>
+        </thead>
+        <tbody id="profit-tbody">
+          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-dim);">Loading data…</td></tr>
+        </tbody>
+        <tfoot id="profit-tfoot" style="border-top:1px solid rgba(255,255,255,.1);"></tfoot>
+      </table>
+    </div>
+
+    <!-- Revenue Contribution Table -->
+    <div class="an-table-card">
+      <div class="an-table-title">📋 Dispatch Revenue Contribution per Product</div>
+      <table class="an-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="num">Dispatch Revenue</th>
+            <th class="num">Contribution %</th>
+          </tr>
+        </thead>
+        <tbody id="contrib-tbody">
+          <tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-dim);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="/biz-modules.js"></script>
+  <script>
+    window.bizHelpers.buildNav();
+
+    const fmt  = (v) => window.bizHelpers.formatCurrency(v);
+    const fmtN = (v) => Number(v).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    /* Product colour palette */
+    const PALETTE = {
+      'Oil':            { dot:'#3a8dff', bar:'rgba(58,141,255,.85)'  },
+      'Carbon Black':   { dot:'#f5a623', bar:'rgba(245,166,35,.85)'  },
+      'Steel Wire':     { dot:'#2cc281', bar:'rgba(44,194,129,.85)'  },
+      'Steel':          { dot:'#a855f7', bar:'rgba(168,85,247,.85)'  },
+      'Gas':            { dot:'#e45d75', bar:'rgba(228,93,117,.85)'  },
+      'Energy Recovery':{ dot:'#57e4a8', bar:'rgba(87,228,168,.85)'  },
+    };
+    const getColor = (name, type='bar') => (PALETTE[name]||{bar:'rgba(139,148,172,.8)',dot:'#8b94ac'})[type];
+
+    let barChart = null, donutChart = null;
+
+    const loadAnalytics = async () => {
+      // Reset KPIs to loading state
+      ['kpi-revenue','kpi-cost','kpi-profit','kpi-margin'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+      });
+      document.getElementById('profit-tbody').innerHTML =
+        '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-dim);">Loading data…</td></tr>';
+
+      try {
+        const data = await window.bizHelpers.apiRequest('/api/analytics/profit');
+        const { metrics, products, highestProfitProduct, lowestProfitProduct, revenueContribution, reconciliation } = data;
+
+        /* ── Revenue Reconciliation ──────────────────────────────────────── */
+        if (reconciliation) {
+          document.getElementById('recon-tbody').innerHTML = `
+            <tr>
+              <td><strong>Dispatch Revenue (Excl. GST)</strong></td>
+              <td class="num">${fmt(reconciliation.dispatchRevenue)}</td>
+              <td>Total value of dispatched goods based on product sales records.</td>
+            </tr>
+            <tr>
+              <td><span style="padding-left:12px;color:var(--text-dim)">+ Uninvoiced Dispatches</span></td>
+              <td class="num" style="color:var(--text-dim)">${fmt(reconciliation.uninvoicedDispatch)}</td>
+              <td><span style="color:var(--text-dim)">Dispatches not yet converted to formal invoices.</span></td>
+            </tr>
+            <tr>
+              <td><strong>Invoice Taxable Revenue</strong></td>
+              <td class="num">${fmt(reconciliation.invoiceTaxable)}</td>
+              <td>Base taxable amount on formal invoices.</td>
+            </tr>
+            <tr>
+              <td><span style="padding-left:12px;color:var(--text-dim)">+ GST Collected</span></td>
+              <td class="num" style="color:var(--text-dim)">${fmt(reconciliation.gstCollected)}</td>
+              <td><span style="color:var(--text-dim)">Total CGST + SGST + IGST collected.</span></td>
+            </tr>
+            <tr style="border-top:1px solid rgba(255,255,255,.1);">
+              <td><strong>Invoice Revenue (Incl. GST)</strong></td>
+              <td class="num"><strong style="color:var(--success)">${fmt(reconciliation.invoiceTotal)}</strong></td>
+              <td>Final billed revenue. This is your <strong>Top-Line Revenue</strong>.</td>
+            </tr>
+            <tr style="background:rgba(255,255,255,.02);">
+              <td><em>Variance (Invoice vs Dispatch)</em></td>
+              <td class="num"><em>${fmt(reconciliation.variance)}</em></td>
+              <td><em>Expected difference due to taxes and uninvoiced stock.</em></td>
+            </tr>
+          `;
+        }
+
+        /* ── KPI cards ───────────────────────────────────────────── */
+        document.getElementById('kpi-revenue').textContent = fmt(metrics.sales_dispatch_revenue);
+        document.getElementById('kpi-revenue-sub').textContent =
+          `Across ${metrics.products_count} product type${metrics.products_count !== 1 ? 's' : ''}`;
+
+        document.getElementById('kpi-cost').textContent = fmt(metrics.sales_dispatch_cost);
+        document.getElementById('kpi-cost-sub').textContent =
+          `+ ₹${fmtN(metrics.total_expenses)} operational expenses`;
+
+        const profitEl = document.getElementById('kpi-profit');
+        profitEl.textContent = fmt(metrics.sales_dispatch_profit);
+        profitEl.className = 'an-kpi-value ' + (metrics.sales_dispatch_profit >= 0 ? 'positive' : 'negative');
+
+        const marginEl = document.getElementById('kpi-margin');
+        marginEl.textContent = metrics.sales_dispatch_margin + '%';
+        marginEl.className = 'an-kpi-value ' + (metrics.sales_dispatch_margin >= 0 ? 'positive' : 'negative');
+        document.getElementById('kpi-margin-sub').textContent =
+          metrics.sales_dispatch_margin >= 0 ? 'Healthy operation ✓' : 'Below breakeven ✗';
+
+        /* ── Hero boxes ──────────────────────────────────────────── */
+        const heroTop = document.getElementById('hero-top');
+        if (highestProfitProduct) {
+          heroTop.textContent = `${highestProfitProduct.product} — ${fmt(highestProfitProduct.profit)}`;
+          heroTop.className = 'an-hero-val ' + (highestProfitProduct.profit >= 0 ? 'positive' : 'negative');
+        } else {
+          heroTop.textContent = 'N/A';
+        }
+
+        const heroBottom = document.getElementById('hero-bottom');
+        if (lowestProfitProduct) {
+          heroBottom.textContent = `${lowestProfitProduct.product} — ${fmt(lowestProfitProduct.profit)}`;
+          heroBottom.className = 'an-hero-val ' + (lowestProfitProduct.profit >= 0 ? 'positive' : 'negative');
+        } else {
+          heroBottom.textContent = 'N/A';
+        }
+
+        /* ── Bar chart ───────────────────────────────────────────── */
+        const labels = products.map(p => p.product);
+        if (barChart) barChart.destroy();
+        barChart = new Chart(document.getElementById('chart-bar'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Revenue',
+                data: products.map(p => p.revenue),
+                backgroundColor: products.map(p => getColor(p.product,'bar')),
+                borderRadius: 6,
+                barPercentage: .65,
+              },
+              {
+                label: 'Est. Cost',
+                data: products.map(p => p.estimated_cost),
+                backgroundColor: 'rgba(245,166,35,.55)',
+                borderRadius: 6,
+                barPercentage: .65,
+              },
+              {
+                label: 'Profit',
+                data: products.map(p => p.profit),
+                backgroundColor: products.map(p =>
+                  p.profit >= 0 ? 'rgba(44,194,129,.8)' : 'rgba(228,93,117,.8)'
+                ),
+                borderRadius: 6,
+                barPercentage: .65,
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color:'#8a9ab5', font:{ size:11 } } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.dataset.label}: ₹${fmtN(ctx.raw)}`
+                }
+              }
+            },
+            scales: {
+              x: { ticks:{ color:'#8a9ab5', font:{size:11} }, grid:{ color:'rgba(255,255,255,.04)' } },
+              y: {
+                ticks: {
+                  color:'#8a9ab5', font:{size:11},
+                  callback: v => '₹' + Number(v/1000).toFixed(0) + 'k'
+                },
+                grid: { color:'rgba(255,255,255,.06)' }
+              }
+            }
+          }
+        });
+
+        /* ── Donut chart ─────────────────────────────────────────── */
+        // Sort the array once so chart and table match
+        revenueContribution.sort((a, b) => b.revenue - a.revenue);
+
+        if (donutChart) donutChart.destroy();
+        donutChart = new Chart(document.getElementById('chart-donut'), {
+          type: 'doughnut',
+          data: {
+            labels: revenueContribution.map(r => r.product),
+            datasets: [{
+              data: revenueContribution.map(r => r.revenue),
+              backgroundColor: revenueContribution.map(r => getColor(r.product,'bar')),
+              borderColor: '#161c28',
+              borderWidth: 3,
+              hoverOffset: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+              legend: { position:'bottom', labels:{ color:'#8a9ab5', font:{size:11}, padding:14 } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.label}: ₹${fmtN(ctx.raw)} (${revenueContribution[ctx.dataIndex].contribution}%)`
+                }
+              }
+            }
+          }
+        });
+
+        /* ── Profit breakdown table ───────────────────────────────── */
+        const tbody = document.getElementById('profit-tbody');
+        if (!products.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-dim);">No sales data found</td></tr>';
+        } else {
+          tbody.innerHTML = products.map(item => {
+            const pos        = item.profit >= 0;
+            const pillCls    = pos ? 'pos' : 'neg';
+            const pillIcon   = pos ? '▲' : '▼';
+            const barPct     = Math.min(Math.abs(item.profit_percentage), 100);
+            const barCls     = pos ? 'pos' : 'neg';
+            const dot        = getColor(item.product, 'dot');
+            return `
+              <tr>
+                <td>
+                  <span class="product-tag">
+                    <span class="product-dot" style="background:${dot}"></span>
+                    ${item.product}
+                  </span>
+                </td>
+                <td class="num">${fmtN(item.quantity)}</td>
+                <td class="num">${fmt(item.revenue)}</td>
+                <td class="num" style="color:var(--text-dim)">${fmt(item.estimated_cost)}</td>
+                <td class="num">
+                  <span class="profit-pill ${pillCls}">${pillIcon} ${fmt(item.profit)}</span>
+                </td>
+                <td>
+                  <div class="margin-bar-wrap">
+                    <div class="margin-bar-bg">
+                      <div class="margin-bar-fill ${barCls}" style="width:${barPct}%"></div>
+                    </div>
+                    <span class="margin-label ${barCls}">${item.profit_percentage}%</span>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('');
+
+          /* totals row */
+          const tfPos = metrics.sales_dispatch_profit >= 0;
+          document.getElementById('profit-tfoot').innerHTML = `
+            <tr style="font-weight:700;color:#f0f4ff;">
+              <td style="padding:13px 14px;">Total</td>
+              <td class="num" style="padding:13px 14px;">—</td>
+              <td class="num" style="padding:13px 14px;">${fmt(metrics.sales_dispatch_revenue)}</td>
+              <td class="num" style="padding:13px 14px;color:var(--text-dim);">${fmt(metrics.sales_dispatch_cost)}</td>
+              <td class="num" style="padding:13px 14px;">
+                <span class="profit-pill ${tfPos?'pos':'neg'}">${tfPos?'▲':'▼'} ${fmt(metrics.sales_dispatch_profit)}</span>
+              </td>
+              <td style="padding:13px 14px;">
+                <span class="margin-label ${tfPos?'pos':'neg'}">${metrics.sales_dispatch_margin}%</span>
+              </td>
+            </tr>`;
+        }
+
+        /* ── Revenue contribution table ──────────────────────────── */
+        document.getElementById('contrib-tbody').innerHTML = revenueContribution
+          .map(item => {
+            const dot = getColor(item.product, 'dot');
+            return `
+              <tr>
+                <td>
+                  <span class="product-tag">
+                    <span class="product-dot" style="background:${dot}"></span>
+                    ${item.product}
+                  </span>
+                </td>
+                <td class="num">${fmt(item.revenue)}</td>
+                <td class="num">
+                  <div class="margin-bar-wrap">
+                    <div class="margin-bar-bg">
+                      <div class="margin-bar-fill pos" style="width:${item.contribution}%"></div>
+                    </div>
+                    <span class="margin-label pos">${item.contribution}%</span>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('');
+
+      } catch (err) {
+        document.getElementById('profit-tbody').innerHTML =
+          `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--danger);">Failed to load analytics: ${err.message}</td></tr>`;
+        window.bizHelpers.createFlash(err.message, 'error');
+      }
+    };
+
+    loadAnalytics();
+  </script>
+</body>
+</html>

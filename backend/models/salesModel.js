@@ -29,6 +29,13 @@ const Sales = {
         const [result] = await db.execute('DELETE FROM sales WHERE id = ?', [id]);
         return result.affectedRows;
     },
+    /**
+     * @deprecated DO NOT USE for financial KPIs (Revenue, Profit, Margin).
+     * This returns the raw sum of quantity*price from the sales dispatch table,
+     * which is NOT the authoritative revenue figure.
+     * Use financialService.getFinancialSnapshot() for all revenue/profit KPIs.
+     * This method is retained only for internal stock-tracking calculations.
+     */
     getSummary: async () => {
         const [rows] = await db.execute('SELECT SUM(quantity * price_per_unit) as total_revenue FROM sales');
         return rows[0].total_revenue || 0;

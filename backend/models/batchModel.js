@@ -55,8 +55,9 @@ const Batch = {
                 SUM(oil_output) as total_oil, 
                 SUM(carbon_output) as total_carbon, 
                 SUM(steel_output) as total_steel,
+                SUM(gas_output) as total_gas,
                 SUM(input_tyres) as total_input,
-                AVG((oil_output / input_tyres) * 100) as avg_efficiency
+                AVG(CASE WHEN input_tyres > 0 THEN (oil_output / input_tyres) * 100 ELSE 0 END) as avg_efficiency
             FROM batches
             WHERE status = 'Completed'
         `);

@@ -4,11 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Pyrolysis ERP</title>
     <script type="module" crossorigin src="/assets/index-DiIpccgm.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-DDIcup4v.css">
+    <link rel="stylesheet" href="/biz-styles.css">
   </head>
   <body>
+    <header>
+      <div><a href="/" style="color:#e3e7ee; text-decoration:none; font-weight:700;">Pyrolysis ERP</a></div>
+      <nav class="biz-main-nav"></nav>
+    </header>
     <div id="root"></div>
+    <script src="/biz-modules.js"></script>
+    <script>
+      if (window.bizHelpers && window.bizHelpers.buildNav) {
+        window.bizHelpers.buildNav();
+      }
+    </script>
+    <!-- Market Trends Module - Lightweight commodity price viewer -->
+    <script src="/marketTrends.js"></script>
+    <script src="/biz-dashboard.js"></script>
   </body>
 </html>

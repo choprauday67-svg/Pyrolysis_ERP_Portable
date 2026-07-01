@@ -42,7 +42,7 @@ const Inventory = {
     getTotalSummary: async () => {
         // Calculate total available stock (sum of all inventory weight minus sum of all batches input_tyres)
         const [invRows] = await db.execute('SELECT SUM(weight) as total_in FROM inventory');
-        const [batchRows] = await db.execute('SELECT SUM(input_tyres) as total_used FROM batches');
+        const [batchRows] = await db.execute("SELECT SUM(input_tyres) as total_used FROM batches WHERE status IN ('In-Progress', 'Completed')");
         
         const totalIn = invRows[0].total_in || 0;
         const totalUsed = batchRows[0].total_used || 0;

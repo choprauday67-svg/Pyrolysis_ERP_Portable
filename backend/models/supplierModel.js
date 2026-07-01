@@ -15,12 +15,21 @@ const Supplier = {
         return rows[0];
     },
 
+    // Case-insensitive duplicate check (excludes current id on update)
+    findByName: async (name, excludeId = null) => {
+        const [rows] = await db.execute(
+            'SELECT id FROM suppliers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id != COALESCE(?, -1)',
+            [name, excludeId]
+        );
+        return rows[0] || null;
+    },
+
     create: async (supplierData) => {
         const { name, contact, location } = supplierData;
 
         const [result] = await db.execute(
             'INSERT INTO suppliers (name, contact, location) VALUES (?, ?, ?)',
-            [name, contact, location]
+            [name.trim(), contact, location]
         );
 
         return result.insertId;
@@ -31,7 +40,7 @@ const Supplier = {
 
         const [result] = await db.execute(
             'UPDATE suppliers SET name = ?, contact = ?, location = ? WHERE id = ?',
-            [name, contact, location, id]
+            [name.trim(), contact, location, id]
         );
 
         return result.affectedRows;
